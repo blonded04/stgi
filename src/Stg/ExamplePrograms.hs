@@ -78,22 +78,26 @@ hw = mconcat
     , Stg.add
     , Stg.mul
     , [program|
-    eval = \ valueOf ->
-        letrec go = \(valueOf go) term ->
+    -- we always use non-updatable for the following (lecture slides):
+    -- * explicit functions
+    -- * partially applied functions
+    -- * constructors
+    eval = \ valueOf -> -- explicit function
+        letrec go = \(valueOf go) term -> -- explicit function
             case term of
                 Lit n -> n;
                 Var x -> valueOf x;
                 Add l r ->
-                    let lhs = \ (go l) -> go l in
-                    let rhs = \ (go r) -> go r in
+                    let lhs = \ (go l) -> go l in -- needed only once
+                    let rhs = \ (go r) -> go r in -- needed only once
                         add lhs rhs;
                 Mul l r ->
-                    let lhs = \ (go l) -> go l in
-                    let rhs = \ (go r) -> go r in
+                    let lhs = \ (go l) -> go l in -- needed only once
+                    let rhs = \ (go r) -> go r in -- needed only once
                         mul lhs rhs;
                 Let x e body ->
-                    let expr = \ (valueOf go e) => go e in
-                    let valueOf' = \ (x valueOf expr) y ->
+                    let expr = \ (valueOf go e) -> go e in -- needed only once
+                    let valueOf' = \ (x valueOf expr) y -> -- explicit function
                         case x of
                             VarId x' ->
                                 case y of
@@ -108,47 +112,47 @@ hw = mconcat
                 other -> error_force other
             in
                 go;
-    pow = \ e n ->
+    pow = \ e n -> -- explicit function
         case n of
             Int# n_unboxed ->
                 case ==# n_unboxed 0# of
-                    1# -> let one_unboxed = \ -> Int# 1# in
+                    1# -> let one_unboxed = \ -> Int# 1# in -- needed only once
                             Lit one_unboxed;
                     0# -> case -# n_unboxed 1# of
                             n_dec_unboxed ->
-                                let n_dec = \ (n_dec_unboxed) -> Int# n_dec_unboxed in
-                                let tail = \ (n_dec e) => pow e n_dec in
+                                let n_dec = \ (n_dec_unboxed) -> Int# n_dec_unboxed in -- needed only once
+                                let tail = \ (n_dec e) => pow e n_dec in -- needed only once
                                     Mul e tail;
                     other -> error_force other;
             other -> error_force other;
-    sop = \ e n ->
+    sop = \ e n -> -- explicit function
         case n of
             Int# n_unboxed ->
                 case ==# n_unboxed 0# of
-                    1# -> let one_unboxed = \ -> Int# 1# in
+                    1# -> let one_unboxed = \ -> Int# 1# in -- needed only once
                             Lit one_unboxed;
                     0# ->
-                        let z = \ (n) -> VarId n in
-                        let pow_e = \(e n) => pow e n in
-                        let zvar = \ (z) -> Var z in
+                        let z = \ (n) -> VarId n in -- needed only once
+                        let epow = \(e n) -> pow e n in -- needed only once
+                        let zvar = \ (z) -> Var z in -- needed only once
                             case -# n_unboxed 1# of
                                 n_dec_unboxed ->
-                                    let n_dec = \ (n_dec_unboxed) -> Int# n_dec_unboxed in
-                                    let tail = \ (e n_dec) => sop e n_dec in
-                                    let rhs = \ (zvar tail) -> Add zvar tail in
-                                        Let z pow_e rhs;
+                                    let n_dec = \ (n_dec_unboxed) -> Int# n_dec_unboxed in -- needed only once
+                                    let tail = \ (e n_dec) => sop e n_dec in -- tail call
+                                    let rhs = \ (zvar tail) -> Add zvar tail in -- needed only once
+                                        Let z epow rhs;
                     other -> error_force other;
             other -> error_force other;
-    main = \ =>
-        let one_unboxed = \ -> Int# 1# in
-        let loo_unboxed = \ -> Int# 100# in
-        let loo_boxed = \ (loo_unboxed) -> VarId loo_unboxed in
-        let litone = \ (one_unboxed) -> Lit one_unboxed in
-        let varloo = \ (loo_boxed) -> Var loo_boxed in
-        let lhs = \ (varloo litone) -> Add varloo litone in
-        let two_unboxed = \ -> Int# 2# in
-        let expr = \ (lhs two_unboxed) => sop lhs two_unboxed in
-        let valueOf = \ v ->
+    main = \ => -- main is always updatable
+        let one_unboxed = \ -> Int# 1# in -- needed only once
+        let loo_unboxed = \ -> Int# 100# in -- needed only once
+        let loo_boxed = \ (loo_unboxed) -> VarId loo_unboxed in -- needed only once
+        let litone = \ (one_unboxed) -> Lit one_unboxed in -- needed only once
+        let varloo = \ (loo_boxed) -> Var loo_boxed in -- needed only once
+        let lhs = \ (varloo litone) -> Add varloo litone in -- needed only once
+        let two_unboxed = \ -> Int# 2# in -- needed only once
+        let expr = \ (lhs two_unboxed) -> sop lhs two_unboxed in -- needed only once
+        let valueOf = \ v -> -- explicit function
             case v of
                 VarId i ->
                     case i of
