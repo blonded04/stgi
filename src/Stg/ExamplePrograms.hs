@@ -7,6 +7,8 @@ module Stg.ExamplePrograms (
 
     -- * Simple introductory programs
 
+        hw,
+        calculateLinearFunction,
         implies,
         addTwoNumbers,
         calculateLength,
@@ -70,8 +72,108 @@ import           Stg.Marshal
 import           Stg.Parser.QuasiQuoter
 import qualified Stg.Prelude            as Stg
 
+hw :: Program
+hw = mconcat
+    [ Stg.eq_Int
+    , Stg.add
+    , Stg.mul
+    , [program|
+    eval = \ valueOf ->
+        letrec go = \(valueOf go) term ->
+            case term of
+                Lit n -> n;
+                Var x -> valueOf x;
+                Add l r ->
+                    let lhs = \ (go l) -> go l in
+                    let rhs = \ (go r) -> go r in
+                        add lhs rhs;
+                Mul l r ->
+                    let lhs = \ (go l) -> go l in
+                    let rhs = \ (go r) -> go r in
+                        mul lhs rhs;
+                Let x e body ->
+                    let expr = \ (valueOf go e) => go e in
+                    let valueOf' = \ (x valueOf expr) y ->
+                        case x of
+                            VarId x' ->
+                                case y of
+                                    VarId y' ->
+                                        case eq_Int x' y' of
+                                            True  -> expr;
+                                            _False -> valueOf y;
+                                    other -> error_force other;
+                            other -> error_force other
+                    in
+                        eval valueOf' body;
+                other -> error_force other
+            in
+                go;
+    pow = \ e n ->
+        case n of
+            Int# n_unboxed ->
+                case ==# n_unboxed 0# of
+                    1# -> let one_unboxed = \ -> Int# 1# in
+                            Lit one_unboxed;
+                    0# -> case -# n_unboxed 1# of
+                            n_dec_unboxed ->
+                                let n_dec = \ (n_dec_unboxed) -> Int# n_dec_unboxed in
+                                let tail = \ (n_dec e) => pow e n_dec in
+                                    Mul e tail;
+                    other -> error_force other;
+            other -> error_force other;
+    sop = \ e n ->
+        case n of
+            Int# n_unboxed ->
+                case ==# n_unboxed 0# of
+                    1# -> let one_unboxed = \ -> Int# 1# in
+                            Lit one_unboxed;
+                    0# ->
+                        let z = \ (n) -> VarId n in
+                        let pow_e = \(e n) => pow e n in
+                        let zvar = \ (z) -> Var z in
+                            case -# n_unboxed 1# of
+                                n_dec_unboxed ->
+                                    let n_dec = \ (n_dec_unboxed) -> Int# n_dec_unboxed in
+                                    let tail = \ (e n_dec) => sop e n_dec in
+                                    let rhs = \ (zvar tail) -> Add zvar tail in
+                                        Let z pow_e rhs;
+                    other -> error_force other;
+            other -> error_force other;
+    main = \ =>
+        let one_unboxed = \ -> Int# 1# in
+        let loo_unboxed = \ -> Int# 100# in
+        let loo_boxed = \ (loo_unboxed) -> VarId loo_unboxed in
+        let litone = \ (one_unboxed) -> Lit one_unboxed in
+        let varloo = \ (loo_boxed) -> Var loo_boxed in
+        let lhs = \ (varloo litone) -> Add varloo litone in
+        let two_unboxed = \ -> Int# 2# in
+        let expr = \ (lhs two_unboxed) => sop lhs two_unboxed in
+        let valueOf = \ v ->
+            case v of
+                VarId i ->
+                    case i of
+                        Int# i_unboxed ->
+                            case ==# i_unboxed 100# of
+                                1# -> Int# 8#;
+                                0# -> Int# 0#;
+                                other -> error_force other;
+                        other -> error_force other;
+                other -> error_force other
+            in
+                eval valueOf expr
+    |]]
 
-
+calculateLinearFunction :: Int -> Int -> Int -> Program
+calculateLinearFunction a b x = mconcat
+    [ Stg.add
+    , Stg.mul
+    , toStg "a" a
+    , toStg "b" b
+    , toStg "x" x
+    , [program|
+    main = \ => let ax = \ -> mul a x
+                in add ax b
+    |]]
 
 
 -- | A program that calculates @x and not y@. This is probably the simplest
